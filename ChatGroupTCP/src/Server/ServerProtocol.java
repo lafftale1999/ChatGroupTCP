@@ -13,10 +13,14 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class ServerProtocol extends Thread{
+
+    // Thread-safe queue with all the IO-tasks for program
+    // Only used for addTask -> runProtocol -> sendAll
     private final BlockingQueue<Runnable> tasks = new LinkedBlockingQueue<>();
+
+    // All PrintWriters for current handlers to be able to sendOut data from here
     private final ArrayList<PrintWriter> writers = new ArrayList<>();
     private final Users currentUsers = new Users();
-
 
     @Override
     public void run() {
@@ -26,47 +30,46 @@ public class ServerProtocol extends Thread{
                 task.run();
             }
         } catch (InterruptedException e) {
-            System.out.println("Thread interrupted. Ending ServerProtocol");
+            System.out.println("ServerProtocol run() - Thread interrupted, ending ServerProtocol");
         }
     }
 
     public void runProtocol(String jsonString) {
-        System.out.println("---------------------RUNNING PROTOCOL----------------------------");
-        System.out.println(jsonString);
-
         ObjectMapper mapper = new ObjectMapper();
         Object object = null;
 
         try {
             JsonNode root = mapper.readTree(jsonString);
-
+            // IF USER
             if(root.has("userName") && !root.has("message")) {
                 User newUser = mapper.readValue(jsonString, User.class);
-                System.out.println(" - user received: " + newUser.getUserName());
-
-                if(newUser.isActive()) {
-                    System.out.println(" - user is active");
-                    if(!currentUsers.getUsers().contains(newUser)) {
-                        System.out.println(" - user was not in list");
-                        currentUsers.addUser(newUser);
-                        object = currentUsers;
-                    }
+                // If active && not exists in current user - add to current user
+                if(newUser.isActive() && !currentUsers.getUsers().contains(newUser)) {
+                    currentUsers.addUser(newUser);
+                    object = currentUsers;
                 }
-                else {
+                // Else if user is not active - remove from currentUsers
+                else if(!newUser.isActive()){
                     currentUsers.removeUser(newUser);
                     object = newUser;
                 }
             }
+            // IF MESSAGE
             else if(root.has("message")) {
                 object = mapper.readValue(jsonString, Message.class);
             }
 
-            System.out.println("SENDING OBJECT: " + object.toString());
-            sendAll(object);
+            // SEND DATA TO ALL CLIENTS
+            if(object != null) {
+                sendAll(object);
+            }
+            else {
+                System.out.println("Something went wrong when creating object in ServerProtocol runProtocol()");
+            }
         } catch (JsonMappingException e) {
-            System.out.println("Unable to map string");
+            System.out.println("ServerProtocol runProtocol() - Unable to map string: " + e.getMessage());
         } catch (JsonProcessingException e) {
-            System.out.println("Unable to parse Json");
+            System.out.println("ServerProtocol runProtocol() - Unable to parse Json" + e.getMessage());
         }
     }
 
@@ -74,6 +77,7 @@ public class ServerProtocol extends Thread{
         ObjectMapper mapper = new ObjectMapper();
         String json = null;
 
+        // Creating json depending on class
         try {
             if(object instanceof Message message) {
                 json = mapper.writeValueAsString(message);
@@ -85,12 +89,15 @@ public class ServerProtocol extends Thread{
                 json = mapper.writeValueAsString(users);
             }
 
-            System.out.println(json);
             if(json != null) {
                 for(PrintWriter writer: writers) {
                     writer.println(json);
-                    System.out.println("Message sent");
+                    System.out.println("Response: " + json);
+                    System.out.println("------------------------------------------------------------------------------------");
                 }
+            }
+            else {
+                System.out.println("Something went wrong when sending message in ServerProtocol sendAll()");
             }
         } catch (JsonProcessingException e) {
             System.out.println("Unable to parse JSON object: " + e.getMessage());
@@ -103,9 +110,5 @@ public class ServerProtocol extends Thread{
 
     public void addWriter(PrintWriter writer) {
         this.writers.add(writer);
-    }
-
-    public ArrayList<PrintWriter> getWriters() {
-        return this.writers;
     }
 }

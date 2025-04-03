@@ -14,6 +14,7 @@ public class Client {
     ChatWindow chatWindow;
     int serverPort = 55555;
 
+    // Create current User and GUI
     public Client() {
         while(true) {
             String userName = JOptionPane.showInputDialog("What is your username?");
@@ -28,11 +29,14 @@ public class Client {
 
     public static void main(String[] args) {
         Client client = new Client();
-
         try{
             InetAddress serverAddress = InetAddress.getLocalHost();
             try(Socket socket = new Socket(serverAddress, client.serverPort)){
+
+                //Create sender. Listens to the actions performed in GUI and SENDS corresponding data.
                 ClientSender clientSender = new ClientSender(client.chatWindow, client.currentUser, socket);
+
+                // Separate thread for listening to incoming data from Server. Also creates an instance of ClientProtocol
                 ClientListener clientListener = new ClientListener(client.chatWindow, client.currentUser, socket);
                 clientListener.start();
                 while(true) {}

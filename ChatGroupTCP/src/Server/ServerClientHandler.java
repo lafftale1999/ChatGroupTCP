@@ -23,11 +23,11 @@ public class ServerClientHandler extends Thread{
 
     @Override
     public void run() {
-        System.out.println(socket.isClosed());
         String clientRequest;
-
         try(BufferedReader dataIn = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
             while((clientRequest = dataIn.readLine()) != null) {
+                System.out.println("------------------------------------------------------------------------------------");
+                System.out.println("Request: " + clientRequest);
                 protocol.addTask(clientRequest);
             }
         } catch (IOException e) {

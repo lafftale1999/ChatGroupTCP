@@ -1,5 +1,5 @@
 package Client;
-
+/*Object that listens to actions performed in the GUI and then send corresponding information to the server.*/
 import GUI.ChatWindow;
 import Message.Message;
 import User.User;
@@ -17,9 +17,7 @@ import java.net.Socket;
 public class ClientSender implements ActionListener {
 
     ChatWindow chatWindow;
-
     User currentUser;
-    int serverPort = 55555;
 
     InetAddress serverAddress;
     Socket socket;
@@ -29,14 +27,13 @@ public class ClientSender implements ActionListener {
         this.chatWindow = chatWindow;
         this.currentUser = currentUser;
         this.socket = socket;
-        this.createListeners();
+        createListeners();
         try {
             dataOut = new PrintWriter(socket.getOutputStream(), true);
         } catch (IOException e) {
             System.out.println("Error instantiating ChatReceiverSender!");
         }
-
-        this.sendHandShake();
+        sendHandShake();
     }
 
     public void createListeners() {
@@ -46,11 +43,10 @@ public class ClientSender implements ActionListener {
             System.exit(0);
         });
 
-
         chatWindow.getSendMessagePanel().getSendButton().addActionListener(e -> sendMessage());
 
+        // Enter sends message and shift + Enter = \n
         JTextArea inputArea = chatWindow.getSendMessagePanel().getMessageTextArea();
-
         inputArea.getInputMap().put(KeyStroke.getKeyStroke("ENTER"), "sendOnEnter");
         inputArea.getActionMap().put("sendOnEnter", new AbstractAction() {
             @Override
@@ -58,22 +54,28 @@ public class ClientSender implements ActionListener {
                 sendMessage();
             }
         });
-
         inputArea.getInputMap().put(KeyStroke.getKeyStroke("shift ENTER"), "insert-break");
     }
 
-    public void sendLastBreath() {
+    public void sendHandShake() {
         try {
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writeValueAsString(currentUser);
             dataOut.println(json);
-        } catch (IOException ex) {
-            System.out.println("Error sending last Breath: " + ex.getMessage());
-            ex.printStackTrace();
+
+            // Send hello message in chat.
+            String greetChat = currentUser.getUserName() + " has entered the chat";
+            Message message = new Message(greetChat, currentUser);
+            json = mapper.writeValueAsString(message);
+            dataOut.println(json);
+
+        } catch (JsonProcessingException e) {
+            System.out.println("Error mapping currentUser as json in ClientSender.java - sendHandShake()");
         }
     }
 
     public void sendMessage() {
+        // Check that the text area isn't empty - then parse message to json
         if(!chatWindow.getSendMessagePanel().getMessageTextArea().getText().isEmpty()) {
             Message message = new Message(chatWindow.getSendMessagePanel().getMessageTextArea().getText(), currentUser);
 
@@ -82,10 +84,7 @@ public class ClientSender implements ActionListener {
 
             try {
                 json = mapper.writeValueAsString(message);
-                System.out.println("------------------- SENDING MESSAGE --------------------------");
-                System.out.println(json);
                 dataOut.println(json);
-                System.out.println("---------------------------MESSAGE SENT---------------------------");
             } catch (IOException e) {
                 System.out.println("Something went wrong in ClientSender.java sendMessage()");
             }
@@ -97,17 +96,21 @@ public class ClientSender implements ActionListener {
         }
     }
 
-    public void sendHandShake() {
+    public void sendLastBreath() {
         try {
-            // CREATE USER PACKET
+            // Remove user from group chat window by sending inactive user.
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writeValueAsString(currentUser);
-            System.out.println("------------------------- SENDING HANDSHAKE --------------------------");
-            System.out.println(json);
             dataOut.println(json);
-            System.out.println("------------------------- HANDSHAKE SENT --------------------------");
-        } catch (JsonProcessingException e) {
-            System.out.println("Error mapping currentUser as json in ClientSender.java - sendHandShake()");
+
+            // Send goodbye message in chat.
+            String leaveChat = currentUser.getUserName() + " has left the chat";
+            Message message = new Message(leaveChat, currentUser);
+            json = mapper.writeValueAsString(message);
+            dataOut.println(json);
+        } catch (IOException ex) {
+            System.out.println("ClientSender sendLastBreath() - Error when sending last breath: " + ex.getMessage());
+            ex.printStackTrace();
         }
     }
 
